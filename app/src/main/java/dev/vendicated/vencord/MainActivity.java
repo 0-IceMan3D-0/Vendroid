@@ -15,8 +15,11 @@ import java.util.Objects;
 
 public class MainActivity extends Activity {
     public static final int FILECHOOSER_RESULTCODE = 8485;
+    public static final int PLUGIN_PICKER_RESULTCODE = 8486;
     private boolean wvInitialized = false;
     private WebView wv;
+    private VencordNative vencordNative;
+    public String pluginPickerCallbackId;
 
     public ValueCallback<Uri[]> filePathCallback;
 
@@ -42,7 +45,8 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(true);
 
-        wv.addJavascriptInterface(new VencordNative(this, wv), "VencordMobileNative");
+        vencordNative = new VencordNative(this, wv);
+        wv.addJavascriptInterface(vencordNative, "VencordMobileNative");
 
         try {
             HttpClient.fetchVencord(this);
@@ -76,6 +80,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        if (requestCode == PLUGIN_PICKER_RESULTCODE) {
+            onPluginPicked(resultCode, intent);
+            return;
+        }
+
         if (requestCode != FILECHOOSER_RESULTCODE || filePathCallback == null)
             return;
 
@@ -101,6 +110,24 @@ public class MainActivity extends Activity {
             filePathCallback.onReceiveValue(uris);
         }
         filePathCallback = null;
+    }
+
+    private void onPluginPicked(int resultCode, Intent intent) {
+        var callbackId = pluginPickerCallbackId;
+        pluginPickerCallbackId = null;
+        if (callbackId == null) return;
+
+        if (resultCode != RESULT_OK || intent == null || intent.getData() == null) {
+            vencordNative.resolveInstall(callbackId, null, null);
+            return;
+        }
+
+        try {
+            vencordNative.resolveInstall(callbackId, null, ThirdPartyPlugins.installFromUri(this, intent.getData()));
+        } catch (Exception ex) {
+            Logger.e("Failed to install plugin", ex);
+            vencordNative.resolveInstall(callbackId, ex.getMessage(), null);
+        }
     }
 
     private void explodeAndroid() {
