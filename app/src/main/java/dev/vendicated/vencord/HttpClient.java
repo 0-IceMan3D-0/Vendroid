@@ -42,6 +42,7 @@ public class HttpClient {
 
     public static String VencordRuntime;
     public static String VencordMobileRuntime;
+    public static String ThirdPartyPluginsRuntime;
 
     public static void fetchVencord(Activity activity) throws IOException {
         if (VencordRuntime != null) return;
@@ -50,10 +51,13 @@ public class HttpClient {
         try (var is = res.openRawResource(R.raw.vencord_mobile)) {
             VencordMobileRuntime = readAsText(is);
         }
+        try (var is = res.openRawResource(R.raw.third_party_plugins)) {
+            ThirdPartyPluginsRuntime = readAsText(is);
+        }
 
         var conn = fetch(Constants.JS_BUNDLE_URL);
         try (var is = conn.getInputStream()) {
-            VencordRuntime = readAsText(is);
+            VencordRuntime = ThirdPartyPlugins.exposeVencordPluginMeta(readAsText(is));
         }
     }
 
@@ -65,7 +69,7 @@ public class HttpClient {
         return conn;
     }
 
-    private static String readAsText(InputStream is) throws IOException {
+    static String readAsText(InputStream is) throws IOException {
         try (var baos = new ByteArrayOutputStream()) {
             int n;
             byte[] buf = new byte[16384]; // 16 KB
