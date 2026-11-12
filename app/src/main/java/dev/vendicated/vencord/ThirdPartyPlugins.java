@@ -54,21 +54,38 @@ public class ThirdPartyPlugins {
         return vencordScript.substring(0, matcher.start()) + "globalThis.VencordPluginMeta=" + vencordScript.substring(matcher.start());
     }
 
-    /** JSON array of { fileName, code } */
+    /** JSON array of { fileName, code, bundled }. Bundled plugins ship in the APK's assets/plugins */
     public static String listJson(Context ctx) throws IOException, JSONException {
-        var files = dir(ctx).listFiles((d, name) -> name.endsWith(".js"));
         var result = new JSONArray();
-        if (files == null) return result.toString();
 
-        Arrays.sort(files);
-        for (var file : files) {
-            try (var is = new FileInputStream(file)) {
-                result.put(new JSONObject()
-                        .put("fileName", file.getName())
-                        .put("code", HttpClient.readAsText(is)));
+        var bundled = ctx.getAssets().list("plugins");
+        if (bundled != null) {
+            Arrays.sort(bundled);
+            for (var name : bundled) {
+                if (!name.endsWith(".js")) continue;
+                try (var is = ctx.getAssets().open("plugins/" + name)) {
+                    result.put(pluginJson(name, is, true));
+                }
+            }
+        }
+
+        var files = dir(ctx).listFiles((d, name) -> name.endsWith(".js"));
+        if (files != null) {
+            Arrays.sort(files);
+            for (var file : files) {
+                try (var is = new FileInputStream(file)) {
+                    result.put(pluginJson(file.getName(), is, false));
+                }
             }
         }
         return result.toString();
+    }
+
+    private static JSONObject pluginJson(String fileName, InputStream is, boolean bundled) throws IOException, JSONException {
+        return new JSONObject()
+                .put("fileName", fileName)
+                .put("code", HttpClient.readAsText(is))
+                .put("bundled", bundled);
     }
 
     public static String installFromUri(Context ctx, Uri uri) throws IOException {
